@@ -1,0 +1,208 @@
+-- ================= 🔥 HOODHELLER ULTIMATE LOADER =================
+-- For Delta, Synapse, Krnl, and all executors
+
+local ApiUrl = "https://hoodheller.vercel.app"
+local DiscordInvite = "https://discord.gg/vD6dzt9u3"
+
+-- ================= UI Library =================
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("HoodHeller - Ultimate", "DarkTheme")
+
+-- ================= Main Tab =================
+local MainTab = Window:NewTab("Main")
+local MainSection = MainTab:NewSection("Loader")
+
+MainSection:NewLabel("Welcome to HoodHeller Ultimate!")
+MainSection:NewLabel("Status: Connecting...")
+
+-- ================= Status Label =================
+local StatusLabel = MainSection:NewLabel("")
+
+-- ================= Execute Button =================
+local ExecuteButton = MainSection:NewButton("Execute Script", "Load HoodHeller", function()
+    loadHoodHeller()
+end)
+
+-- ================= Settings Tab =================
+local SettingsTab = Window:NewTab("Settings")
+local SettingsSection = SettingsTab:NewSection("Options")
+
+SettingsSection:NewButton("Copy Discord", "Copy invite link", function()
+    setclipboard(DiscordInvite)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "HoodHeller",
+        Text = "Discord link copied!",
+        Duration = 2
+    })
+end)
+
+SettingsSection:NewButton("Retry Connection", "Try connecting again", function()
+    StatusLabel:UpdateLabel("Status: Connecting...")
+    wait(1)
+    checkConnection()
+end)
+
+-- ================= Info Tab =================
+local InfoTab = Window:NewTab("Info")
+local InfoSection = InfoTab:NewSection("About")
+
+InfoSection:NewLabel("HoodHeller Ultimate")
+InfoSection:NewLabel("Version: 4.0.0")
+InfoSection:NewLabel("Discord: " .. DiscordInvite)
+
+-- ================= Generate Nonce =================
+local function generateNonce()
+    local random = math.random(100000, 999999)
+    local timestamp = tostring(os.time())
+    return timestamp .. "_" .. random
+end
+
+-- ================= Get Token =================
+local function getToken(userId)
+    StatusLabel:UpdateLabel("Status: Getting token...")
+    
+    local success, response = pcall(function()
+        return request({
+            Url = ApiUrl .. "/get-token",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = game:GetService("HttpService"):JSONEncode({
+                robloxUserId = userId
+            })
+        })
+    end)
+    
+    if success and response and response.StatusCode == 200 then
+        local data = game:GetService("HttpService"):JSONDecode(response.Body)
+        return data.token
+    end
+    
+    return nil
+end
+
+-- ================= Load Main Script =================
+local function loadHoodHeller()
+    StatusLabel:UpdateLabel("Status: Starting...")
+    
+    local player = game:GetService("Players").LocalPlayer
+    local userId = player.UserId
+    
+    -- Get token first
+    StatusLabel:UpdateLabel("Status: Getting token...")
+    local token = getToken(userId)
+    
+    if not token then
+        StatusLabel:UpdateLabel("Status: Failed to get token!")
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "HoodHeller",
+            Text = "Failed to get token! Check Discord.",
+            Duration = 5
+        })
+        return
+    end
+    
+    -- Prepare request
+    StatusLabel:UpdateLabel("Status: Loading script...")
+    
+    local nonce = generateNonce()
+    local timestamp = os.time() * 1000 -- Convert to milliseconds
+    
+    local requestData = {
+        robloxUserId = userId,
+        nonce = nonce,
+        executor = identifyexecutor and identifyexecutor() or "Unknown",
+        placeId = game.PlaceId,
+        timestamp = timestamp
+    }
+    
+    local success, response = pcall(function()
+        return request({
+            Url = ApiUrl .. "/load",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Authorization"] = "Bearer " .. token,
+                ["User-Agent"] = identifyexecutor and identifyexecutor() or "Delta Android/2.0"
+            },
+            Body = game:GetService("HttpService"):JSONEncode(requestData)
+        })
+    end)
+    
+    if success and response and response.StatusCode == 200 then
+        -- Success! Execute the script
+        StatusLabel:UpdateLabel("Status: Executing...")
+        
+        local success2, result = pcall(function()
+            loadstring(response.Body)()
+        end)
+        
+        if success2 then
+            StatusLabel:UpdateLabel("Status: Loaded successfully!")
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "HoodHeller",
+                Text = "Script loaded successfully!",
+                Duration = 3
+            })
+        else
+            StatusLabel:UpdateLabel("Status: Execution failed!")
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "HoodHeller",
+                Text = "Failed to execute script!",
+                Duration = 3
+            })
+        end
+    else
+        -- Handle errors
+        local errorMsg = "Unknown error"
+        if response and response.Body then
+            pcall(function()
+                local data = game:GetService("HttpService"):JSONDecode(response.Body)
+                errorMsg = data.message or data.status or "Error"
+            end)
+        end
+        
+        StatusLabel:UpdateLabel("Status: Failed - " .. errorMsg)
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "HoodHeller",
+            Text = "Failed to load: " .. errorMsg,
+            Duration = 5
+        })
+    end
+end
+
+-- ================= Check Connection =================
+local function checkConnection()
+    pcall(function()
+        local response = request({
+            Url = ApiUrl,
+            Method = "GET",
+            Timeout = 5
+        })
+        
+        if response and response.StatusCode == 200 then
+            StatusLabel:UpdateLabel("Status: Connected")
+        else
+            StatusLabel:UpdateLabel("Status: Cannot connect to server")
+        end
+    end)
+end
+
+-- ================= Auto-Execute =================
+local function autoExecute()
+    wait(2) -- Wait for UI to load
+    StatusLabel:UpdateLabel("Status: Auto-executing...")
+    loadHoodHeller()
+end
+
+-- ================= Initialize =================
+StatusLabel:UpdateLabel("Status: Ready")
+checkConnection()
+
+-- Auto-execute (can be disabled by commenting this line)
+spawn(autoExecute)
+
+print("🔥 HoodHeller Loader v4.0.0 loaded successfully!")
+print("💬 Join Discord: " .. DiscordInvite)
